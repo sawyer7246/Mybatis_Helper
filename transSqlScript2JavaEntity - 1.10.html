@@ -1,0 +1,545 @@
+<!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<script type="text/javascript">
+
+function createAttribute(modifier,type,atrrName,comment,oriAtrrName,maxLen,voName){ 
+	var o = { 
+		modifier : modifier, 
+		type : type, 
+		atrrName : atrrName,
+		comment : comment,
+		oriAtrrName : oriAtrrName ,
+		maxLen : maxLen,
+		voName : voName,
+		setComment : function(cmt){ 
+			comment = cmt;
+		}, 
+		setMaxLen : function(len){ 
+			maxLen = len;
+		}, 
+		composeLine4Setter : function(){
+			var atrrNameInitial = atrrName.charAt(0).toUpperCase();
+			var newatrrName = atrrNameInitial+atrrName.substring(1);
+			var randomData = "";
+			if(type == "Date"){
+				randomData = "new Date()"
+			}else if(type == "String"){
+				randomData = '("T"+Math.random()).substring(0,'+((Number(this.maxLen)>5)?5:this.maxLen)+')';
+			}else if(type == "Double"){
+				randomData = "Math.random()";
+			}
+
+			if(""==voName||null==voName)voName="this";
+			if("private"==modifier){
+				return  voName+'.set'+newatrrName+'('+randomData+');'+'\n';
+			}else{
+				return  voName+"."+atrrName+'='+randomData+';'+'\n';
+			}
+			
+		}, 
+		composeXML :function(){
+			return  '<result property="'+atrrName+'" column="'+oriAtrrName+'" />'+'\n';
+		},
+		composeXML_TABLE_ALIAS :function(column_alias){
+			return  '<result property="'+atrrName+'" column="'+column_alias+"_"+oriAtrrName+'" />'+'\n';
+		},
+		composeSELECT_ELEMENT :function(){
+			return  oriAtrrName;
+		},
+		composeSELECT_ELEMENT_TABLE_ALIAS :function(column_alias){
+			return  column_alias+'.'+oriAtrrName+" AS "+column_alias+"_"+oriAtrrName;
+		},
+		composeSELECT_ELEMENT_BLANK :function(column_alias){
+			var insertType = "''";
+			
+			insertType = "null";
+			
+			return  insertType+" AS "+column_alias+"_"+oriAtrrName;
+		},
+		composeINSERT_JAVA_FIELD_ELEMENT :function(){
+			return  "#{"+atrrName+"}";
+		},
+		composeGetterAndSetter :function(){
+			var atrrNameInitial = atrrName.charAt(0).toUpperCase();
+			var newatrrName = atrrNameInitial+atrrName.substring(1);//首字母大写的属性名称
+			var commentForFunction =  "\n"+"/**\n * "+comment+"\n * "+oriAtrrName+"\n */"+"\n";
+			var finalGetterStr = commentForFunction+"public "+type+" get"+newatrrName+"(){\n"+"return this."+atrrName+";\n}\n";
+			var finalSetterStr =  commentForFunction+"public void"+" set"+newatrrName+"("+type+" "+atrrName+"){\n"+" this."+atrrName+"="+atrrName+";\n}\n";
+			return finalGetterStr+finalSetterStr;
+		},
+		composeLine : function(){ 
+			return  "\n"+"/**\n * "+comment+"\n * "+oriAtrrName+"\n */"+"\n"+modifier+" "+type+" "+atrrName+";"+"\n";
+				} 
+		}; 
+	return o; 
+}
+
+
+//Java实体对象
+function createJavaEntity(attrName,fieldCode,isExist,isRight,rightCode){
+	var o = { 
+		attrName:attrName, 
+		fieldCode:fieldCode,
+		isExist:isExist,
+		isRight:isRight,
+		rightCode:rightCode,
+		isEquals:function(attrNameOther,fieldCodeOther){ 
+			this.rightCode = fieldCodeOther;
+			if(this.attrName==attrNameOther && this.fieldCode==fieldCodeOther){
+				return true;
+			}
+			return false;
+		}};
+	return o; 
+}
+
+//域实体对象
+function createFieldEntity(fieldName,fieldCode,isExist){
+	var o = { 
+		fieldName:fieldName, 
+		fieldCode:fieldCode,
+		isExist:isExist,
+		isEquals:function(fieldNameOther,fieldCodeOther){ 
+			if(this.fieldName==fieldNameOther && this.fieldCode==fieldCodeOther){
+				return true;
+			}
+			return false;
+		}};
+	return o; 
+}
+
+
+//检查字段
+function checkFieldcode(){
+	var pattern =new RegExp("\\((.| )+?\\)","igm");
+	var patternQoute =new RegExp("/\"(.*?)\"","igm");
+	//获取文本框1-Java实体
+	//获取文本框2-核对字段
+	var oriText = document.getElementById('oriText');//获取Java实体
+	var oriTextCheck = document.getElementById('changedText');//核对字段
+	var finalStr = "";
+	var finalStr2 = "";
+	if(null!=oriText){
+		var lineArr = oriText.value.replace(/(^\s*)|(\s*$)/g, "").split(";");//;分隔
+		var objArr =  new Array();//java字段对象数组
+		for(var k = 0 ; k<lineArr.length ; k++){
+			var firstParenthesesArr = lineArr[k].match(pattern);
+			if(firstParenthesesArr==null||lineArrCheckStr=="" || firstParenthesesArr.length==0)continue;
+			var firstParentheses = firstParenthesesArr[0];//第一个括号 \"
+			var qouteArr = firstParentheses.match(/\"(.*?)\"/g);
+			var fieldCode = qouteArr[1].substring(1,qouteArr[1].length-1);//Code
+			var attrNameArr = lineArr[k].split(/\s+/);
+			var attrName = attrNameArr[attrNameArr.length-1];
+			if(attrName==null||attrName=="")continue;
+			var obj = createJavaEntity(attrName.replace(" ",""),fieldCode.replace(" ",""),false,false,"");
+			objArr.push(obj);
+		}
+
+	}
+	if(null!=oriTextCheck){
+		var lineArrCheck = oriTextCheck.value.replace(/(^\s*)|(\s*$)/g, "").split(/[\r\n]/g);//行分隔
+		var objCheckArr =  new Array();//java字段对象数组
+		var pattern2 = new RegExp("[\\[\\]]");
+		var pattern3 = new RegExp("[\\}\\}]");
+		for(var i = 0 ; i<lineArrCheck.length ; i++){
+			//循环规则
+			var lineArrCheckStr = lineArrCheck[i].split(/\s+/);
+			if(lineArrCheckStr==null || lineArrCheckStr=="" || lineArrCheckStr.length < 2)continue; 
+			var codeCheckTemp = lineArrCheckStr[0];
+			var attrCheckTemp = lineArrCheckStr[1];
+			var nextLineStr = lineArrCheck[i+1]+"";
+			//处理数组情况 直接去下一行数组名
+			if(pattern2.test(lineArrCheckStr[1])){
+				attrCheckTemp = lineArrCheckStr[1].replace("[","").replace("]","");
+				if(((i+1)<lineArrCheck.length)&&pattern3.test(nextLineStr)){
+					attrCheckTemp = nextLineStr.replace(/(^\s*)|(\s*$)/g, "").replace("{","").replace("}","");
+					i++;
+				}	
+			}
+			if(attrCheckTemp==null||attrCheckTemp=="")continue;
+			var checkObj = createFieldEntity(attrCheckTemp.replace(" ",""),codeCheckTemp.replace(" ",""),false);
+			objCheckArr.push(checkObj);
+		}
+
+		//循环Java实体，匹配域规则
+		for(var n = 0 ; n<objArr.length ; n++){
+			//循环java对象数组
+				var tempObj = objArr[n];
+				for(var m = 0 ; m<objCheckArr.length ; m++){
+					var checkObj = objCheckArr[m];		
+					if((checkObj.fieldName==tempObj.attrName)&&!tempObj.isEquals(checkObj.fieldName,checkObj.fieldCode)){
+						//属性相同但是域号错误
+						tempObj.isExist = true;
+						tempObj.isRight = false;
+						checkObj.isExist = true;
+					}else if((checkObj.fieldName==tempObj.attrName)&&tempObj.isEquals(checkObj.fieldName,checkObj.fieldCode)){
+						//属性相同域号相同
+						tempObj.isExist = true;
+						tempObj.isRight = true;
+						checkObj.isExist = true;
+					}
+				}
+			}
+
+
+		for(var n = 0 ; n<objArr.length ; n++){
+			var tempObj = objArr[n];
+			if(!tempObj.isExist){
+				finalStr2 += "Java实体属性："+tempObj.attrName+"不是在协议规则中的属性！\n";
+			}else if(tempObj.isExist&&(!tempObj.isRight)){
+				finalStr+="Java实体属性："+tempObj.attrName+",错误的域号为："+tempObj.fieldCode+", 正确的是："+tempObj.rightCode+"\n";
+			}
+		}
+		finalStr+="//****************************//\n";
+		for(var n = 0 ; n<objCheckArr.length ; n++){
+			var tempCheckObj = objCheckArr[n];
+			if(!tempCheckObj.isExist){
+				finalStr += "缺少协议中属性："+tempCheckObj.fieldName+"\n";
+			}
+		}
+		document.getElementById('changedText2').value = finalStr;
+		document.getElementById('changedText3').value = finalStr2;	
+	}
+		
+
+
+}
+
+var table = "";
+function trans(){
+	table = "\n"+"/*"+"\n*";
+	var oriText = document.getElementById('oriText');//获取原本文
+	var objArr =  new Array();
+	var tableName = "";
+	var finalStr = "";
+	var finalStr2 = "";
+	var finalStr3 = "";
+	var finalStr4 = "";
+	var finalStr5 = "";
+	var finalStr6 = "";
+	var finalStr7 = "";//insert 语句
+	var finalStr8 = "";
+	if(null!=oriText){
+		var lineArr = oriText.value.replace(/(^\s*)|(\s*$)/g, "").split(/[\r\n]/g);//行分隔
+		var innerStr = "";
+		var innerFlag = false;
+		 
+		for(var k = 0 ; k<lineArr.length ; k++){
+			if(lineArr[k]==null||lineArr[k]=="")continue;
+			if(lineArr[k].charAt(0)=='('){
+				innerFlag = true;
+				continue;
+			}else if(lineArr[k].charAt(0)==')'){
+				innerFlag = false;
+				continue;
+			}else if(innerFlag){
+				//innerStr +=lineArr[k];//括号内的内容	
+				var inlineArr = lineArr[k].replace(/(^\s*)|(\s*$)/g, "").split(/\s+/);	
+				var firstWordInLine = inlineArr[0];
+				var secondWordInLine = inlineArr[1];
+				var type = getType(secondWordInLine);//获取类型
+				var attrTypeLen = getAttrLen(secondWordInLine);
+
+
+				var splitedWords = firstWordInLine.split("_");
+				var tempModifier = document.getElementById('modifier_value').value;
+				var voName = document.getElementById('vo_name').value;
+				var tempAttr = "";
+				//除去‘F’ 从1开始
+				for(var n = 1 ,len = splitedWords.length; n< len ; n++){
+					if(n==1){
+						//处理第一个单词
+						tempAttr+=splitedWords[1].toLowerCase();
+					}else{
+						 var notFirstWordsTemp =splitedWords[n];//非首字母
+						 var inital = notFirstWordsTemp.charAt(0);
+						 tempAttr += (inital+notFirstWordsTemp.substring(1).toLowerCase());
+					}
+				}
+				var atrrObj = createAttribute(tempModifier,type,tempAttr,"Null",firstWordInLine,attrTypeLen,voName);
+				objArr.push(atrrObj);
+			}
+			//组表名
+			else if(lineArr[k].match("comment on table")){
+				var tableArr = lineArr[k].split(/\s+/);
+				table += tableArr[3]+"\n*";//表名字
+				tableName =tableArr[3];
+				tableArr = lineArr[++k].split(/\s+/);
+				table += tableArr[2].substring(1,tableArr[2].length-2)+"\n*/";
+				break;
+			}
+			
+		}
+		//继续从k开始遍历
+		for(; k<lineArr.length ; k++){
+			if(lineArr[k].match("comment on column")){
+				var commentArr = lineArr[k].split(/\s+/);
+				var colOri = commentArr[3].split(".")[1];
+				for(var m=0 ; m<objArr.length;m++){
+					if(objArr[m].oriAtrrName == colOri){
+						commentArr = lineArr[++k].replace(/(^\s*)|(\s*$)/g, "").split(/\s+/);
+						objArr[m].setComment(commentArr[1].substring(1,commentArr[1].length-2));
+					}
+				}				 
+			}
+		}
+		finalStr+=table;
+		var getterAndSetterStr = "";
+		finalStr4 = "SELECT ";
+		finalStr5 = "SELECT ";
+		finalStr6 = "SELECT ";
+		finalStr7 = "INSERT INTO  \n"+tableName+"\n(";
+		var allJAVA_ELEMENT = "";
+		var table_alais = document.getElementById('select_table_name').value;
+		for(var x =0 ; x<objArr.length ; x++){
+				finalStr +=objArr[x].composeLine();
+				getterAndSetterStr+=objArr[x].composeGetterAndSetter();
+				finalStr2 +=objArr[x].composeLine4Setter();
+				finalStr3 +=objArr[x].composeXML();
+				finalStr4 +=objArr[x].composeSELECT_ELEMENT_TABLE_ALIAS(table_alais);
+				finalStr5 +=objArr[x].composeSELECT_ELEMENT_BLANK(table_alais);
+				finalStr6 +=objArr[x].composeSELECT_ELEMENT();
+				finalStr7 +=objArr[x].composeSELECT_ELEMENT();
+				allJAVA_ELEMENT +=objArr[x].composeINSERT_JAVA_FIELD_ELEMENT();
+				finalStr8 +=objArr[x].composeXML_TABLE_ALIAS(table_alais);
+				if(x!=(objArr.length-1)){
+					finalStr4+=',';
+					finalStr5+=',';
+					finalStr6+=',';
+					finalStr7+=',';
+					allJAVA_ELEMENT+=',';
+				}
+				//"\n "+objArr[x].modifier+" "+objArr[x].type + " "+objArr[x].atrrName+";\n";
+		}
+		document.getElementById('changedText').value = 	finalStr+getterAndSetterStr;
+		document.getElementById('changedText2').value = finalStr2;
+		document.getElementById('changedText3').value = finalStr3
+			+"\n\n--********* SELECT STATEMENT TABLE_ALIAS**********\n\n"+finalStr4
+			+"\n\n--********* SELECT STATEMENT BLANK_ELEMENT**********\n\n"+finalStr5
+			+"\n\n--********* SELECT STATEMENT **********\n\n"+finalStr6
+			+"\n\n--********* INSERT STATEMENT **********\n\n"+finalStr7+")\n VALUES \n ("+allJAVA_ELEMENT+")"
+			+"\n\n--********* XML STATEMENT WITH ALIAS **********\n\n"+finalStr8
+			;
+	}
+}
+
+function getType(oriType){
+	var strPat = new RegExp('VARCHAR2');
+	var datePat = new RegExp('DATE');
+	var numPat = new RegExp('NUMBER');
+	if(oriType == null || oriType == "")return "Not_Found_Type";
+	if(oriType.match(strPat)){
+		return "String";
+	}else if(oriType.match(datePat)){
+		return "Date";
+	}else if(oriType.match(numPat)){
+		return "Double";
+	}else{
+		return oriType;
+	}
+}
+
+
+function transInsert(){
+	var oriText = document.getElementById('oriText');//获取原本文
+	var objArr =  new Array();
+	var finalStr = "";
+	var finalStr2 = "";
+	var finalStr3 = "";
+	var voName = document.getElementById('vo_name').value;
+	if(null!=oriText){
+		var pattern =new RegExp("\\((.| )+?\\)","igm");
+		var lineArr = oriText.value.replace(/(^\s+)|(\s+$)|(\n)+|(\r\n)+/g, "");//去除所有空格
+		finalStr += oriText.value+" VALUES(";
+		var innerArr = lineArr.match(pattern);
+		var lineSplitArr = innerArr[0].substring(1,innerArr[0].length-1).split(",");
+		for(var k = 0 ; k< lineSplitArr.length ; k++){
+			var splitedWordsStr = lineSplitArr[k].replace(/(^\s+)|(\s+$)|(\n)+|(\r\n)+/g,"");
+			var splitedWords = splitedWordsStr.split("_");			
+			var tempAttr = "";
+			//除去‘F’ 从1开始
+			for(var n = 1 ,len = splitedWords.length; n< len ; n++){
+				if(n==1){
+					//处理第一个单词
+					tempAttr+=splitedWords[1].toLowerCase();
+				}else{
+					 var notFirstWordsTemp =splitedWords[n];//非首字母
+					 var inital = notFirstWordsTemp.charAt(0);
+					 tempAttr += (inital+notFirstWordsTemp.substring(1).toLowerCase());
+				}
+			};
+			finalStr += "#{"+tempAttr+"}";
+			finalStr2 += '<result property="'+tempAttr+'" column="'+splitedWordsStr+'" />'+'\n';
+			finalStr3 += voName+'.'+tempAttr +'= "test"+Math.random();'+'\n';
+			if(k != lineSplitArr.length-1){
+				finalStr+=",";
+			}
+		}
+		finalStr +=")"; 
+		document.getElementById('changedText').value = 	finalStr;
+		document.getElementById('changedText2').value = finalStr2;
+		document.getElementById('changedText3').value = finalStr3;
+	}
+}
+
+function getAttrLen(oriType){
+	var strPat = new RegExp('VARCHAR2');
+	var datePat = new RegExp('DATE');
+	var numPat = new RegExp('NUMBER');
+	var pattern =new RegExp("\\((.| )+?\\)","igm");
+	var tempLenArr = "";
+	var tempLen = "";
+	if(oriType == null || oriType == "")return "Not_Fount_Type";
+	if(oriType.match(strPat)){
+		tempLenArr = oriType.match(pattern);
+		tempLen = tempLenArr[0].substring(1,tempLenArr[0].length-1);
+		return tempLen;
+	}else if(oriType.match(datePat)){
+		return null;	
+	}else if(oriType.match(numPat)){
+		tempLenArr = oriType.match(pattern);
+		var tempSplitArr = tempLenArr[0].split(",");
+		tempLen = tempSplitArr[0].substring(1);
+		return tempLen;
+	}else{
+		return null;
+	}	
+
+}
+
+
+function change()
+{
+	var oriText = document.getElementById('oriText');//获取原本文
+	var finalStr = "";
+	var finalStr2 = "";
+	var finalStr3 = "";
+	var voName = document.getElementById('vo_name').value;
+	var voNameInner = document.getElementById('vo_name_inner').value;
+	if(null!=oriText){	
+			var lineArr = document.getElementById('oriText').value.replace(/(^\s*)|(\s*$)/g, "").split(/[\r\n]/g);//行分隔
+			var addSignStr = "//";//加注释的同步标志
+			for(var k = 0 ; k<lineArr.length ; k++){
+					if(lineArr[k]==null||lineArr[k]=="")continue;
+					var splitArr = lineArr[k].split(";");//分出 public String AAA; //注释
+					if(splitArr.length<=1){
+						finalStr +=addSignStr+(lineArr[k]+"\n");
+						finalStr2 +=addSignStr+(lineArr[k].replace(/(^\s*)|(\s*$)/g, "").replace('\s+',''));
+						finalStr3 +=addSignStr+(lineArr[k].replace(/(^\s*)|(\s*$)/g, "").replace('\s+',''));
+						addSignStr ="";
+						continue;
+					}
+					var attributeStr = splitArr[0]//分出 public，String ，AAA
+					var attributeArr = attributeStr.split(/\s+/);
+					//处理首字母
+					var oriLast = attributeArr[attributeArr.length-1];
+					var inital = oriLast.charAt(0).toLowerCase();
+					var initalUpperCase = oriLast.charAt(0).toUpperCase();
+					var lastLetter = inital+oriLast.substring(1);
+					var lastLetterUpperCase = initalUpperCase+oriLast.substring(1);
+
+					attributeArr.pop();//删除最后一个元素
+					finalStr +=(attributeArr.join(" ")+" "+lastLetter+";"+splitArr[1]+"\n");
+					finalStr2+="\n"+voName+'.set'+lastLetterUpperCase+'('+voNameInner+'.get'+lastLetterUpperCase+'())'+";\n";
+					finalStr3+="\n"+voName+'.'+lastLetter+' = '+voNameInner+'.'+lastLetter+';\n';
+					addSignStr = "//";
+				}
+			document.getElementById('changedText').value = 	finalStr;
+			document.getElementById('changedText2').value = finalStr2;
+			document.getElementById('changedText3').value = finalStr3;
+		}
+	
+}
+
+function getPerportiesFromCreatSql(){}
+
+</script>
+
+<body>
+<table>
+	<tr>
+		<td align="center">
+			<p>Original text</p>
+			<textarea id='oriText' style="height:500px;width:400px"></textarea>
+		</td>
+		<td align="center">
+			<p>Changed text 1</p>
+			<textarea id='changedText' style="height:500px;width:400px"></textarea>	
+		</td>
+		<td align="center">
+			<p>Changed text 2</p>
+			<textarea id='changedText2' style="height:500px;width:400px"></textarea>	
+		</td>
+		<td align="center">
+			<p>Changed text 3</p>
+			<textarea id='changedText3' style="height:500px;width:400px"></textarea>	
+		</td>
+	</tr>	
+	<tr><td colspan="4"><hr></td></tr>
+	<tr>
+		<td  >
+			<button onclick="change()">Change Java entity Initial to Lower Case  </button>
+		</td>
+		<td>
+			<button onclick="trans()">Transform table creat Sql-Script to Java Bean(Ignore and delete 'F_') </button>
+		</td>
+		<td>
+			<button onclick="transInsert()">InsertScript for MyBatis(Ignore and delete 'F_') </button>
+			
+		</td>
+		<td>
+			<span>选择实体属性修饰：</span>
+			<select id="modifier_value">
+			  <option value ="public" selected="selected">public</option>
+			  <option value ="private">private</option>
+			</select>
+			<br><br>
+			<span>设置Setter方法的Vo变量名：</span>
+			<input id="vo_name" value="this">
+			<br><br>
+			<span>设置Setter方法的内变量名：</span>
+			<input id="vo_name_inner" value="request">
+			<br><br>
+			<span>select 输入值.属性 from 表</span>
+			<input id="select_table_name" value="a">
+			<br><br>
+			<button onclick="checkFieldcode()">核对GTP实体和协议字段(注释不能含有分号)</button>
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<p  >把Java entity属性复制到Original text框中，点击上面按钮，把属性首字母变成小写</p>
+			<P>注意：</P>
+			<P>1.原文例子： private String StudentId;//注释</P>
+			<P>---> private String studentId;</P>
+		</td>
+		<td>
+			<p >把格式化过的sql建表语句复制到Original text框,点击上面按钮，转换成Java实体，以及产生所有属性的随机数据setter</p>
+			<P>注意：</P>
+			<P>1.sql语句是必须是格式化过的，目前只支持PL/SQL导出的sql</P>
+			<p>2.目前类型转换只支持:VARCHAR2->String ,DATE->Date,NUMBER->Double。如果类型不在其中，会保留Sql原始数据类型，请自己操作。</p>
+			<p>3.属性的随机数据setter已加入长度限制，并且可以按照不同类型set不同随机数据。</p>
+		</td>
+		<td>
+			<p >根据InsertSql中的参数,生成Mybatis的插入属性</p>
+			<P>注意：</P>
+			<P>1.属性的随机数据setter没有加入长度限制，并且没有按照不同类型set不同随机数据。</P>
+			<P>2.插入的原文例子：INSERT TABLE_A (F_SEAT_ID,
+		F_PRVL_ID, F_IS_PRVL, F_OPRT_TIME, F_OPRT_USER_ID, F_CHECK_TIME,
+		F_CHECK_USER_ID)</P>	
+		</td>
+		<td>
+			<p></p>
+			 
+		</td>
+
+	</tr>
+	<tr>
+		
+	</tr>
+</table>
+</body>
+</html>
