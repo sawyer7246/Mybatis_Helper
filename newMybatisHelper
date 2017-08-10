@@ -1,0 +1,1039 @@
+<!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<script type="text/javascript">
+
+function createAttribute(modifier,type,atrrName,comment,oriAtrrName,maxLen,voName,oriType,notNull){ 
+	var o = { 
+		modifier : modifier, 
+		type : type, 
+		oriType : oriType,
+		atrrName : atrrName,
+		comment : comment,
+		oriAtrrName : oriAtrrName ,
+		maxLen : maxLen,
+		voName : voName,
+		notNull : notNull,
+		setComment : function(cmt){ 
+			comment = cmt;
+		}, 
+		setMaxLen : function(len){ 
+			maxLen = len;
+		}, 
+		composeLine4Setter : function(){
+			var atrrNameInitial = atrrName.charAt(0).toUpperCase();
+			var newatrrName = atrrNameInitial+atrrName.substring(1);
+			var randomData = "";
+			if(type == "Date"){
+				randomData = "new Date()"
+			}else if(type == "String"){
+				randomData = '("T"+Math.random()).substring(0,'+((Number(this.maxLen)>5)?5:this.maxLen)+')';
+			}else if(type == "Double"){
+				randomData = "Math.random()";
+			}
+
+			if(""==voName||null==voName)voName="this";
+			if("private"==modifier){
+				return  voName+'.set'+newatrrName+'('+randomData+');'+'\n';
+			}else{
+				return  voName+"."+atrrName+'='+randomData+';'+'\n';
+			}
+			
+		}, 
+		composeXML :function(){
+			return  '<result property="'+atrrName+'" column="'+oriAtrrName+'" />'+'\n';
+		},
+		composeCSharpBean :function(){
+			var beanComment = "\n/// <summary>\n/// "+comment+"\n/// </summary>\n";
+			return  beanComment+' public '+convertJavaType2CSharp(type)+' '+atrrName+' { get; set; }'+'\n';
+		},
+		composeCSharpTableBean :function(){
+			var beanComment = "\n/// <summary>\n/// "+comment+"\n/// </summary>\n";
+			var atrrNameInitial = atrrName.charAt(0).toUpperCase();
+			var newatrrName = atrrNameInitial+atrrName.substring(1);//首字母大写的属性名称
+			var tempCSharpStr = '[Column(Header = "'+newatrrName+'", Align = TextAlignment.Left)]\n';
+			return  beanComment+tempCSharpStr+' public string '+atrrName+' { get; set; }'+'\n';
+		},
+		composeXML_TABLE_ALIAS :function(column_alias){
+			return  '<result property="'+atrrName+'" column="'+column_alias+"_"+oriAtrrName+'" />'+'\n';
+		},
+		composeSELECT_ELEMENT :function(){
+			return  oriAtrrName;
+		},
+		composeUPDATE_ELEMENT :function(notLast){
+			//mybatis update语句 failureCode != '' and 
+			var strNull = '';
+			var comma = '';
+			if('String'==type){
+				strNull +=" and "+atrrName+"!='' ";
+			}
+			if(notLast){
+				comma =',';
+			}
+			var tempStr = '\t \t<if test="'+atrrName+'!= null '+strNull+'">  '+'\n';
+				tempStr += '\t \t \t'+oriAtrrName+'=#{'+atrrName+'}'+comma+'\n';
+			 	tempStr += '\t \t</if>'+'\n';
+			return  tempStr;
+		},
+		composeSELECT_ELEMENT_TABLE_ALIAS :function(column_alias){
+			return  column_alias+'.'+oriAtrrName+" AS "+column_alias+"_"+oriAtrrName;
+		},
+		composeSELECT_ELEMENT_BLANK :function(column_alias){
+			var insertType = "''";
+			
+			insertType = "null";
+			
+			return  insertType+" AS "+column_alias+"_"+oriAtrrName;
+		},
+		composeINSERT_JAVA_FIELD_ELEMENT :function(){
+			if(!notNull){
+				return  "#{"+atrrName+",jdbcType="+getInsertType(oriType,atrrName)+"}";
+			}else{
+				return  "#{"+atrrName+"}";
+			}
+		},
+		composeGetterAndSetter :function(){
+			var atrrNameInitial = atrrName.charAt(0).toUpperCase();
+			var newatrrName = atrrNameInitial+atrrName.substring(1);//首字母大写的属性名称
+			var commentForFunction =  "\n"+"/**\n * "+comment+"\n * "+oriAtrrName+"\n */"+"\n";
+			var finalGetterStr = commentForFunction+"public "+type+" get"+newatrrName+"(){\n"+"\treturn this."+atrrName+";\n}\n";
+			var finalSetterStr =  commentForFunction+"public void"+" set"+newatrrName+"("+type+" "+atrrName+"){\n"+"\tthis."+atrrName+"="+atrrName+";\n}\n";
+			
+			return finalGetterStr+finalSetterStr;
+		},
+		composetoString1 :function(){
+			var atrrNameInitial = atrrName.charAt(0).toUpperCase();
+			var newatrrName = atrrNameInitial+atrrName.substring(1);//首字母大写的属性名称
+			var finaltoString1 =atrrName+"=\" +"+atrrName+"+ \", ";
+			return finaltoString1;
+		},
+		composetoString2 :function(){
+			var atrrNameInitial = atrrName.charAt(0).toUpperCase();
+			var newatrrName = atrrNameInitial+atrrName.substring(1);//首字母大写的属性名称
+			var finaltoString2 ="get"+newatrrName+"()=\" + get"+newatrrName+"() + \",";
+			return finaltoString2;
+		},
+		composePROPERTY_UTIL :function(){
+			return  'convertString("'+oriAtrrName+'",'+atrrName+')+\n';
+		},
+		composeLine : function(){ 
+			return  "\n"+"/**\n * "+comment+"\n * "+oriAtrrName+"\n */"+"\n"+modifier+" "+type+" "+atrrName+";"+"\n";
+				} 
+		}; 
+	return o; 
+}
+
+
+
+function convertJavaType2CSharp(type){
+	switch(type){
+		case "List": return "List";
+		case "Double": return "double ?";
+		case "Double": return "double ?";
+		case "Double": return "double ?";
+		case "Double": return "double ?";
+		case "Long": return "long ?";
+		case "String": return "string";
+		case "Date": return "DateTime ?";
+		default:break;
+	}
+	return type;
+}
+
+//Java实体对象
+function createJavaEntity(attrName,fieldCode,isExist,isRight,rightCode){
+	var o = { 
+		attrName:attrName, 
+		fieldCode:fieldCode,
+		isExist:isExist,
+		isRight:isRight,
+		rightCode:rightCode,
+		isEquals:function(attrNameOther,fieldCodeOther){ 
+			this.rightCode = fieldCodeOther;
+			if(this.attrName==attrNameOther && this.fieldCode==fieldCodeOther){
+				return true;
+			}
+			return false;
+		}};
+	return o; 
+}
+
+//域实体对象
+function createFieldEntity(fieldName,fieldCode,fieldType,fieldComment,javaType,isExist,deepCount){
+	var o = { 
+		fieldName:fieldName, //域属性名
+		fieldCode:fieldCode,//域号
+		fieldType:fieldType,//域类型
+		fieldComment:fieldComment,//域注释
+		javaType:javaType,//java类型
+		deepCount:deepCount,//内部层级
+		isExist:isExist,//是否存在
+		isEquals:function(fieldNameOther,fieldCodeOther){ 
+			if(this.fieldName==fieldNameOther && this.fieldCode==fieldCodeOther){
+				return true;
+			}
+			return false;
+		}};
+	return o; 
+}
+
+//转换协议类型成java类型
+function convertFeildType(fieldType){ 
+	var language = document.getElementById('language').value;
+	if(language=="Java"){
+		switch(fieldType){
+				case "Array": return "List";
+				case "Amount": return "Double";
+				case "Price": return "Double";
+				case "Weight": return "Double";
+				case "Rate": return "Double";
+				case "Quantity": return "Long";
+				case "OKFlag": return "String";
+				case "Date": return "Date";
+				case "Time": return "Date";
+				case "DateTime": return "Date";
+				case "HASH": return "Object";
+				case "hash": return "Object";
+				case "<hash>": return "Object";
+				default:break;
+			}
+			if(/[N]/i.test(fieldType)){
+				if(parseInt(fieldType.substring(1))>=10){
+					return "Long";
+				}else{
+					return "Integer";
+				}
+				return "Long";
+			}else if(/[C]/i.test(fieldType)){
+				return "String";
+			}
+	}else if(language=="C#"){
+		switch(fieldType){
+			case "Array": return "IList";
+			case "Amount": return "double ?";
+			case "Price": return "double ?";
+			case "Weight": return "double ?";
+			case "Rate": return "double ?";
+			case "Quantity": return "long ?";
+			case "OKFlag": return "string";
+			case "Date": return "DateTime ?";
+			case "Time": return "DateTime ?";
+			case "DateTime": return "DateTime ?";
+			case "HASH": return "object";
+			case "hash": return "object";
+			case "<hash>": return "object";
+			default:break;
+		}
+		if(/[N]/i.test(fieldType)){ 
+			if(parseInt(fieldType.substring(1))>=10){
+				return "long";
+			}else{
+				return "int";
+			}
+			return "long";
+		}else if(/[C]/i.test(fieldType)){
+			return "string";
+	}
+}	
+	
+}
+
+//获取箭头的数目
+function hasArrowCounts(Str){
+	if(/[→]/i.test(Str)){
+        return Str.match(/[→]/ig).length;
+    }
+    return -1;
+}
+
+var pattern =new RegExp("\\((.| )+?\\)","igm");
+	var patternQoute =new RegExp("/\"(.*?)\"","igm");
+//生成协议Java bean
+function generateFieldJavaBean(){
+	var aTableText = document.getElementById('oriText');//获取一张表的域字段 
+	var allTableText = document.getElementById('changedText');//所有域字段
+	var language = document.getElementById('language').value;
+	//var APIType = document.getElementById('APIType').value;//所有域字段
+	var APIType = "GTPField";
+	var finalStr = "";
+	var finalStr2 = "";
+	var pattern2 = new RegExp("[\\[\\]]");
+	var pattern3 = new RegExp("[\\}\\}]"); 
+	var patternQoute =new RegExp("\\{(.| )+?\\}","igm");
+	//所有表 第一次得到域字典后，删除文本框内容可以不重新解析。
+	if(null!=allTableText || fieldObjArray==null || fieldObjArray.length==0){
+		var lineArrCheck = allTableText.value.replace(/(^\s*)|(\s*$)/g, "").split(/[\r\n]/g);//行分隔
+		var objCheckArr =  new Array();//全部域字段对象数组
+		
+		for(var i = 0,len = lineArrCheck.length ; i< len ; i++){
+			//循环规则
+			var lineArrCheckStr = lineArrCheck[i].split(/\s+/);//按空格分割行元素
+			//如果为空，或者行元素小于3个，结束本次循环
+			if(lineArrCheckStr==null || lineArrCheckStr=="" || lineArrCheckStr.length < 3)continue; 
+			var codeCheckTemp = lineArrCheckStr[0];//域号
+			var attrCheckTemp = lineArrCheckStr[1];//域名字
+			var typeCheckTemp = lineArrCheckStr[2];//域类型
+			 
+			//处理数组情况，去除方括号 
+			if(pattern2.test(lineArrCheckStr[1])){
+				attrCheckTemp = lineArrCheckStr[1].replace("[","").replace("]","");	 	
+			}else if(pattern3.test(lineArrCheckStr[1])){
+				attrCheckTemp = lineArrCheckStr[1].replace("{","").replace("}","");	
+			}
+
+			if(attrCheckTemp==null||attrCheckTemp=="")continue;
+			var checkObj = createFieldEntity(attrCheckTemp.replace(" ",""),codeCheckTemp.replace(" ",""),removeParethesis(typeCheckTemp.replace(" ","")),"",convertFeildType(typeCheckTemp.replace(" ","")),false);
+			objCheckArr.push(checkObj);
+		} 
+		fieldObjArray = objCheckArr;
+	}
+	//一张表
+	if(null!=aTableText){
+		var lineArr = aTableText.value.replace(/(^\s*)|(\s*$)/g, "").split(/[\r\n]/g);//行分隔
+		var objArr =  new Array();//
+		var arrowsCounts = -1;
+		var tabStr = "";
+		var splitBlock = "";
+		var hasCommentFlag = false; 
+		
+		for(var i = 0 ,len = lineArr.length; i<len ; i++){
+			//循环规则
+			var lineArrStr = lineArr[i].split(/\s+/);
+			var subListName = "";
+			var arrowsCountsTemp = -1;
+			if(lineArrStr==null || lineArrStr=="" || lineArrStr.length < 3)continue; 
+			if(lineArrStr.length == 3){
+				var codeTemp = lineArrStr[0];
+				var attrTemp = lineArrStr[1];
+				var attrComment = lineArrStr[2];
+			}else if(lineArrStr.length == 4){
+				var deepChildTemp = lineArrStr[0];//箭头数目
+				var codeTemp = lineArrStr[1];
+				var attrTemp = lineArrStr[2];
+				var attrComment = lineArrStr[3];
+				arrowsCountsTemp  = hasArrowCounts(deepChildTemp);
+				 tabStr = getTabs(arrowsCountsTemp);
+			}
+			var nextLineStr = lineArr[i+1]+"";
+			
+			//处理数组情况 直接去下一行数组名
+			if(pattern2.test(attrTemp)){
+				attrTemp = attrTemp.replace("[","").replace("]","");
+				if(((i+2)<lineArr.length)&&pattern3.test(nextLineStr)){
+					subListName = nextLineStr.match(patternQoute)[0].replace("{","").replace("}","").replace(/\s+/g,"").replace("{","").replace("}","");
+					i++;
+				}	
+			}
+			 
+			if(attrTemp==null||attrTemp=="")continue;
+			var Obj = findFieldObjInObjArray(attrTemp.replace(" ",""),codeTemp.replace(" ",""));
+
+			if(null == Obj){
+				finalStr += "\n协议字典中缺少表中属性："+attrTemp+" 域号为："+codeTemp;
+				continue;
+			} 
+			if(Obj.fieldType=='Array'){
+				if(language=="Java"){
+					Obj.javaType = 'List'+'<'+subListName+'>';
+				}else if(language=="C#"){
+					Obj.javaType = 'IList'+'<'+subListName+'>';
+				}
+				
+			}
+			if(arrowsCounts!=arrowsCountsTemp){
+				arrowsCounts = arrowsCountsTemp;
+				if(!hasCommentFlag){
+					splitBlock = "\n// VO-----"+" START----- \n";//块分割 
+				}else{
+					splitBlock = "\n// VO-----"+" END----- "+" \n";//块分割 
+				}
+				hasCommentFlag = (!hasCommentFlag); 
+			}else{
+				splitBlock = "";
+			}
+		 	finalStr2+=composeBeanLine(splitBlock,tabStr,attrComment,APIType,Obj.fieldType,Obj.fieldCode,Obj.javaType,Obj.fieldName);
+			//objArr.push(Obj);
+		}
+
+		document.getElementById('changedText2').value = finalStr;
+		document.getElementById('changedText3').value = finalStr2;	
+	}
+ 
+}
+
+//bean单条属性生成器
+function composeBeanLine(splitBlock,tabStr,attrComment,APIType,fieldType,fieldCode,javaType,fieldName){
+	var language = document.getElementById('language').value;
+	var finalStr2 = "" ;
+	var codeStr = "";
+	if(APIType == 'GTPField'){ 
+		if(language=="Java"){ 
+			codeStr = '\n'+tabStr+'@'+APIType+'(type ="'+fieldType+'" '+', code = "'+fieldCode+'"'+')';
+		}else if(language=="C#"){
+			codeStr = '\n'+tabStr+'['+APIType+'(type ="'+fieldType+'" '+codeStr+', code = "'+fieldCode+'"'+')]';
+		}	
+	}else if(APIType == 'GEMSField'){
+		codeStr = ""+tabStr;
+	}
+	if(language=="Java"){
+		finalStr2+=splitBlock+tabStr+ '\n'+tabStr+'/**\n'+tabStr+' *'+attrComment+'\n'+tabStr+' */'+codeStr;
+		finalStr2+='\n'+tabStr+'public '+javaType+" "+fieldName+';\n';
+	}else if(language=="C#"){
+		finalStr2+=splitBlock+tabStr+ '\n'+tabStr+'/**\n'+tabStr+' *'+attrComment+'\n'+tabStr+' */'+codeStr;
+		finalStr2+='\n'+tabStr+'public '+javaType+" "+fieldName+'{ get; set; }\n';
+	}
+	return  finalStr2;
+}
+
+//根据数字产生tab数目
+function getTabs(counts){
+	var tabStr = "";
+	for(var k = 0 ; k < counts ; k++){
+		tabStr+="\t";
+	}
+	return tabStr;
+}
+
+//从域字段数组中获取域字段对象
+var fieldObjArray = new Array();
+function findFieldObjInObjArray(attrTemp,codeTemp){
+	var len = fieldObjArray.length;
+	for(var k = 0 ; k < len ; k++){
+		var tempObj = fieldObjArray[k];
+		if(codeTemp== tempObj.fieldCode){
+			if(attrTemp == tempObj.fieldName){
+				return tempObj;
+			}else if(attrTemp.toUpperCase() == tempObj.fieldName.toUpperCase()){
+				alert("域名："+tempObj.fieldName+"存在大小写问题，以字典为准，已忽略错误！");
+				//忽略大小写匹配
+				return tempObj;
+			}else{
+				//alert("协议字典中域号： "+tempObj.fieldCode+",域字段名称:"+tempObj.fieldName+" 在表中域字段名称："+attrTemp + " 不一致！");
+				return null;
+			}
+		}
+	}
+	return null;
+}
+
+//检查java实体和协议中字段匹配
+function checkFieldcode(){
+	var pattern =new RegExp("\\((.| )+?\\)","igm");
+	var patternQoute =new RegExp("/\"(.*?)\"","igm");
+	//获取文本框1-Java实体
+	//获取文本框2-核对字段
+	var oriText = document.getElementById('oriText');//获取Java实体
+	var oriTextCheck = document.getElementById('changedText');//核对字段
+	var finalStr = "";
+	var finalStr2 = "";
+	if(null!=oriText){
+		var lineArr = oriText.value.replace(/(^\s*)|(\s*$)/g, "").split(";");//;分隔
+		var objArr =  new Array();//java字段对象数组
+		for(var k = 0 ; k<lineArr.length ; k++){
+			var firstParenthesesArr = lineArr[k].match(pattern);
+			if(firstParenthesesArr==null||lineArrCheckStr=="" || firstParenthesesArr.length==0)continue;
+			var firstParentheses = firstParenthesesArr[0];//第一个括号 \"
+			var qouteArr = firstParentheses.match(/\"(.*?)\"/g);
+			var fieldCode = qouteArr[1].substring(1,qouteArr[1].length-1);//Code
+			var attrNameArr = lineArr[k].split(/\s+/);
+			var attrName = attrNameArr[attrNameArr.length-1];
+			if(attrName==null||attrName=="")continue;
+			var obj = createJavaEntity(attrName.replace(" ",""),fieldCode.replace(" ",""),false,false,"");
+			objArr.push(obj);
+		}
+
+	}
+	if(null!=oriTextCheck){
+		var lineArrCheck = oriTextCheck.value.replace(/(^\s*)|(\s*$)/g, "").split(/[\r\n]/g);//行分隔
+		var objCheckArr =  new Array();//java字段对象数组
+		var pattern2 = new RegExp("[\\[\\]]");
+		var pattern3 = new RegExp("[\\}\\}]");
+		for(var i = 0 ; i<lineArrCheck.length ; i++){
+			//循环规则
+			var lineArrCheckStr = lineArrCheck[i].split(/\s+/);
+			if(lineArrCheckStr==null || lineArrCheckStr=="" || lineArrCheckStr.length < 2)continue; 
+			var codeCheckTemp = lineArrCheckStr[0];
+			var attrCheckTemp = lineArrCheckStr[1];
+			var nextLineStr = lineArrCheck[i+1]+"";
+			//处理数组情况 直接去下一行数组名
+			if(pattern2.test(lineArrCheckStr[1])){
+				attrCheckTemp = lineArrCheckStr[1].replace("[","").replace("]","");
+				if(((i+1)<lineArrCheck.length)&&pattern3.test(nextLineStr)){
+					attrCheckTemp = nextLineStr.replace(/(^\s*)|(\s*$)/g, "").replace("{","").replace("}","");
+					i++;
+				}	
+			}
+			if(attrCheckTemp==null||attrCheckTemp=="")continue;
+			var checkObj = createFieldEntity(attrCheckTemp.replace(" ",""),codeCheckTemp.replace(" ",""),"","","",false);
+			objCheckArr.push(checkObj);
+		}
+
+		//循环Java实体，匹配域规则
+		for(var n = 0 ; n<objArr.length ; n++){
+			//循环java对象数组
+				var tempObj = objArr[n];
+				for(var m = 0 ; m<objCheckArr.length ; m++){
+					var checkObj = objCheckArr[m];		
+					if((checkObj.fieldName==tempObj.attrName)&&!tempObj.isEquals(checkObj.fieldName,checkObj.fieldCode)){
+						//属性相同但是域号错误
+						tempObj.isExist = true;
+						tempObj.isRight = false;
+						checkObj.isExist = true;
+					}else if((checkObj.fieldName==tempObj.attrName)&&tempObj.isEquals(checkObj.fieldName,checkObj.fieldCode)){
+						//属性相同域号相同
+						tempObj.isExist = true;
+						tempObj.isRight = true;
+						checkObj.isExist = true;
+					}
+				}
+			}
+
+
+		for(var n = 0 ; n<objArr.length ; n++){
+			var tempObj = objArr[n];
+			if(!tempObj.isExist){
+				finalStr2 += "Java实体属性："+tempObj.attrName+"不是在协议规则中的属性！\n";
+			}else if(tempObj.isExist&&(!tempObj.isRight)){
+				finalStr+="Java实体属性："+tempObj.attrName+",错误的域号为："+tempObj.fieldCode+", 正确的是："+tempObj.rightCode+"\n";
+			}
+		}
+		finalStr+="//****************************//\n";
+		for(var n = 0 ; n<objCheckArr.length ; n++){
+			var tempCheckObj = objCheckArr[n];
+			if(!tempCheckObj.isExist){
+				finalStr += "缺少协议中属性："+tempCheckObj.fieldName+"\n";
+			}
+		}
+		document.getElementById('changedText2').value = finalStr;
+		document.getElementById('changedText3').value = finalStr2;	
+	}
+		
+
+
+}
+
+function isNotNull(lineData){
+	var nullPat = new RegExp('null',"gi");
+	return lineData.match(nullPat);
+}
+
+var table = "";
+function trans(){
+	table = "\n"+"/*"+"\n*";
+	var oriText = document.getElementById('oriText');//获取原本文
+	var objArr =  new Array();
+	var tableName = "";
+	var finalStr = "";
+	var finalStr2 = "";
+	var finalStr3 = "";
+	var finalStr4 = "";
+	var finalStr5 = "";
+	var finalStr6 = "";
+	var finalStr7 = "";//insert 语句
+	var finalStr8 = "";
+	var finalStr9 = "";//update
+	var finalStr10 = "";//C# bean
+	var finalStr11 = "";//C# table bean
+	var finalStr12 = "";//产生propertyUtil
+	if(null!=oriText){
+		var lineArr = oriText.value.replace(/(^\s*)|(\s*$)/g, "").split(/[\r\n]/g);//行分隔
+		var innerStr = "";
+		var innerFlag = false;
+		 
+		for(var k = 0 ; k<lineArr.length ; k++){
+			if(lineArr[k]==null||lineArr[k]=="")continue;
+			if(lineArr[k].charAt(0)=='('){
+				innerFlag = true;
+				continue;
+			}else if(lineArr[k].charAt(0)==')'){
+				innerFlag = false;
+				continue;
+			}else if(innerFlag){
+				//innerStr +=lineArr[k];//括号内的内容	
+				var inlineArr = lineArr[k].replace(/(^\s*)|(\s*$)/g, "").split(/\s+/);	
+				var firstWordInLine = inlineArr[0];
+				var secondWordInLine = inlineArr[1];
+				var type = getType(secondWordInLine);//获取类型
+				var attrTypeLen = getAttrLen(secondWordInLine);
+
+
+				var splitedWords = firstWordInLine.split("_");
+				var tempModifier = document.getElementById('modifier_value').value;
+				var voName = document.getElementById('vo_name').value;
+				var tempAttr = "";
+				//除去‘F’ 从1开始
+				debugger;
+				if(document.getElementById('needRemoveFLetter').checked){
+					for(var n = 1 ,len = splitedWords.length; n< len ; n++){
+						if(n==1){
+							//处理第一个单词
+							tempAttr+=splitedWords[1].toLowerCase();
+						}else{
+							 var notFirstWordsTemp =splitedWords[n];//非首字母
+							 var inital = notFirstWordsTemp.charAt(0);
+							 tempAttr += (inital+notFirstWordsTemp.substring(1).toLowerCase());
+						}
+					}
+				}else{
+					tempAttr = firstWordInLine;
+				}
+				var atrrObj = createAttribute(tempModifier,type,tempAttr,"Null",firstWordInLine,attrTypeLen,voName,secondWordInLine,isNotNull(lineArr[k]));
+				objArr.push(atrrObj);
+			}
+			//组表名
+			else if(lineArr[k].match("comment on table")){
+				var tableArr = lineArr[k].split(/\s+/);
+				table += tableArr[3]+"\n*";//表名字
+				tableName =tableArr[3];
+				tableArr = lineArr[++k].split(/\s+/);
+				table += tableArr[2].substring(1,tableArr[2].length-2)+"\n*/";
+				break;
+			}
+			
+		}
+		//继续从k开始遍历
+		for(; k<lineArr.length ; k++){
+			if(lineArr[k].match("comment on column")){
+				var commentArr = lineArr[k].split(/\s+/);
+				var colOri = commentArr[3].split(".")[1];
+				for(var m=0 ; m<objArr.length;m++){
+					if(objArr[m].oriAtrrName == colOri){
+						commentArr = lineArr[++k].replace(/(^\s*)|(\s*$)/g, "").split(/\s+/);
+						objArr[m].setComment(commentArr[1].substring(1,commentArr[1].length-2));
+					}
+				}				 
+			}
+		}
+		finalStr+=table;
+		var getterAndSetterStr = "";
+		var toStringStart="\n@Override\npublic String toString(){\n"+"\treturn \" "+tableName+"[";
+		var toStringValue1="";
+		var toStringValue2="";
+		var toStringEnd="]\";\n}\n";
+		finalStr4 = "SELECT ";
+		finalStr5 = "SELECT ";
+		finalStr6 = "SELECT ";
+		finalStr7 = "INSERT INTO  \n"+tableName+"\n(";
+		finalStr9 = '\n UPDATE  '+tableName +'\n'+		'\t<set>\n';
+		var allJAVA_ELEMENT = "";
+		var table_alais = document.getElementById('select_table_name').value;
+		var notLast = true;
+		debugger;
+		for(var x =0 ; x<objArr.length ; x++){
+				finalStr +=objArr[x].composeLine();
+				getterAndSetterStr+=objArr[x].composeGetterAndSetter();
+				toStringValue1+=objArr[x].composetoString1();
+				toStringValue2+=objArr[x].composetoString2();
+				finalStr10+=objArr[x].composeCSharpBean();
+				finalStr11+=objArr[x].composeCSharpTableBean();
+				finalStr2 +=objArr[x].composeLine4Setter();
+				finalStr3 +=objArr[x].composeXML();
+				finalStr4 +=objArr[x].composeSELECT_ELEMENT_TABLE_ALIAS(table_alais);
+				finalStr5 +=objArr[x].composeSELECT_ELEMENT_BLANK(table_alais);
+				finalStr6 +=objArr[x].composeSELECT_ELEMENT();
+				finalStr7 +=objArr[x].composeSELECT_ELEMENT();
+				finalStr12 +=objArr[x].composePROPERTY_UTIL();
+				//composePROPERTY_UTIL
+				
+				allJAVA_ELEMENT +=objArr[x].composeINSERT_JAVA_FIELD_ELEMENT();
+				finalStr8 +=objArr[x].composeXML_TABLE_ALIAS(table_alais);
+				if(x!=(objArr.length-1)){
+					finalStr4+=',';
+					finalStr5+=',';
+					finalStr6+=',';
+					finalStr7+=',';
+					allJAVA_ELEMENT+=','; 
+				}else{
+					notLast = false;
+				}
+				//composeUPDATE_ELEMENT
+				finalStr9 +=objArr[x].composeUPDATE_ELEMENT(notLast);
+				//"\n "+objArr[x].modifier+" "+objArr[x].type + " "+objArr[x].atrrName+";\n";
+		}
+		finalStr9+='\t</set> \nWHERE ';
+		var toStringValue3=toStringValue2.substring(0,toStringValue2.length-1);
+		var finaltoStringValue=finalStr+getterAndSetterStr+toStringStart+toStringValue1+toStringValue3+toStringEnd;
+		document.getElementById('changedText').value = 	finaltoStringValue;
+		document.getElementById('changedText2').value = finalStr2+"\n\n--********* C# BEAN **********\n\n"+finalStr10
+		+"\n\n--********* C# TABLE BEAN **********\n\n"+finalStr11
+		;
+		document.getElementById('changedText3').value = finalStr3
+			+"\n\n--********* SELECT STATEMENT TABLE_ALIAS**********\n\n"+finalStr4
+			+"\n\n--********* SELECT STATEMENT BLANK_ELEMENT**********\n\n"+finalStr5
+			+"\n\n--********* SELECT STATEMENT **********\n\n"+finalStr6
+			+"\n\n--********* INSERT STATEMENT **********\n\n"+finalStr7+")\n VALUES \n ("+allJAVA_ELEMENT+")"
+			+"\n\n--********* XML STATEMENT WITH ALIAS **********\n\n"+finalStr8
+			+"\n\n--********* UNPATE STATEMENT  **********\n\n"+finalStr9
+			+"\n\n--********* PROPERTY STATEMENT  **********\n\n"+finalStr12
+			//finalStr12
+			;
+	}
+}
+
+function getType(oriType){
+	var strPat = new RegExp('VARCHAR2');
+	var datePat = new RegExp('DATE');
+	var numPat = new RegExp('NUMBER');
+	var timestampPat = new RegExp('TIMESTAMP');
+	if(oriType == null || oriType == "")return "Not_Found_Type";
+	if(oriType.match(strPat)){
+		return "String";
+	}else if(oriType.match(datePat)){
+		return "Date";
+	}else if(oriType.match(numPat)){
+		return "BigDecimal";
+	}else if(oriType.match(timestampPat)){
+		return "Timestamp";
+	}else{
+		return oriType;
+	}
+}
+
+/**
+ * [getInsertType 获取Insert插入的属性JDBCTYPE]
+ * @param  {[type]} oriType  [数据库属性]
+ * @param  {[type]} javaAttr [Java属性名]
+ * @return {[type]}          [description]
+ */
+function getInsertType(oriType,javaAttr){
+	var strPat = new RegExp('VARCHAR2',"gi");
+	var datePat = new RegExp('DATE',"gi");
+	var timePat = new RegExp('time',"gi");
+	var oprtTimePat = new RegExp('oprtTime',"gi");
+	var checkTimePat = new RegExp('checkTime',"gi");
+	var numPat = new RegExp('NUMBER',"gi");
+
+	var timestampPat = new RegExp('TIMESTAMP');
+	if(oriType == null || oriType == "")return "Not_Found_Type";
+	if(oriType.match(strPat)){
+		return "VARCHAR";
+	}else if(oriType.match(datePat)){
+		//属性名称中有date的都是用Date来接
+		//属性名称中有time的都是Time来接，除了OprtTime,CheckTime
+		if(javaAttr.match(timePat)){
+			if(javaAttr.match(oprtTimePat)||javaAttr.match(checkTimePat)){
+				//除了OprtTime,CheckTime
+				return "TIMESTAMP";
+			}else{
+				//所有的time都用timestamp
+				//return "TIME";
+				return "TIMESTAMP";
+			}
+		}
+		return "DATE";
+	}else if(oriType.match(numPat)){
+		return "NUMERIC";
+	}else if(oriType.match(timestampPat)){
+		return "TIMESTAMP";
+	}else{
+		return oriType;
+	}
+}
+
+function transInsert(){
+	var oriText = document.getElementById('oriText');//获取原本文
+	var objArr =  new Array();
+	var finalStr = "";
+	var finalStr2 = "";
+	var finalStr3 = "";
+	var voName = document.getElementById('vo_name').value;
+	if(null!=oriText){
+		var pattern =new RegExp("\\((.| )+?\\)","igm");
+		var lineArr = oriText.value.replace(/(^\s+)|(\s+$)|(\n)+|(\r\n)+/g, "");//去除所有空格
+		finalStr += oriText.value+" VALUES(";
+		var innerArr = lineArr.match(pattern);
+		var lineSplitArr = innerArr[0].substring(1,innerArr[0].length-1).split(",");
+		for(var k = 0 ; k< lineSplitArr.length ; k++){
+			var splitedWordsStr = lineSplitArr[k].replace(/(^\s+)|(\s+$)|(\n)+|(\r\n)+/g,"");
+			var splitedWords = splitedWordsStr.split("_");			
+			var tempAttr = "";
+			//除去‘F’ 从1开始
+			if(document.getElementById('needRemoveFLetter').checked){
+				for(var n = 1 ,len = splitedWords.length; n< len ; n++){
+					if(n==1){
+						//处理第一个单词
+						tempAttr+=splitedWords[1].toLowerCase();
+					}else{
+						 var notFirstWordsTemp =splitedWords[n];//非首字母
+						 var inital = notFirstWordsTemp.charAt(0);
+						 tempAttr += (inital+notFirstWordsTemp.substring(1).toLowerCase());
+					}
+				};
+			}else{
+				tempAttr = splitedWordsStr;
+			}
+			finalStr += "#{"+tempAttr+"}";
+			finalStr2 += '<result property="'+tempAttr+'" column="'+splitedWordsStr+'" />'+'\n';
+			finalStr3 += voName+'.'+tempAttr +'= "test"+Math.random();'+'\n';
+			if(k != lineSplitArr.length-1){
+				finalStr+=",";
+			}
+		}
+		finalStr +=")"; 
+		document.getElementById('changedText').value = 	finalStr;
+		document.getElementById('changedText2').value = finalStr2;
+		document.getElementById('changedText3').value = finalStr3;
+	}
+}
+
+function getAttrLen(oriType){
+	var strPat = new RegExp('VARCHAR2');
+	var datePat = new RegExp('DATE');
+	var numPat = new RegExp('NUMBER');
+	var pattern =new RegExp("\\((.| )+?\\)","igm");
+	var tempLenArr = "";
+	var tempLen = "";
+	if(oriType == null || oriType == "")return "Not_Fount_Type";
+	if(oriType.match(strPat)){
+		tempLenArr = oriType.match(pattern);
+		tempLen = tempLenArr[0].substring(1,tempLenArr[0].length-1);
+		return tempLen;
+	}else if(oriType.match(datePat)){
+		return null;	
+	}else if(oriType.match(numPat)){
+		tempLenArr = oriType.match(pattern);
+		if(tempLenArr == null || tempLenArr == "")return 4;
+		var tempSplitArr = tempLenArr[0].split(",");
+		tempLen = tempSplitArr[0].substring(1);
+		return tempLen;
+	}else{
+		return null;
+	}	
+
+}
+
+
+function change()
+{
+	var oriText = document.getElementById('oriText');//获取原本文
+	var finalStr = "";
+	var finalStr2 = "";
+	var finalStr3 = "";
+	var voName = document.getElementById('vo_name').value;
+	var voNameInner = document.getElementById('vo_name_inner').value;
+	if(null!=oriText){	
+			var lineArr = document.getElementById('oriText').value.replace(/(^\s*)|(\s*$)/g, "").split(/[\r\n]/g);//行分隔
+			var addSignStr = "//";//加注释的同步标志
+			for(var k = 0 ; k<lineArr.length ; k++){
+					if(lineArr[k]==null||lineArr[k]=="")continue;
+					var splitArr = lineArr[k].split(";");//分出 public String AAA; //注释
+					if(splitArr.length<=1){
+						finalStr +=addSignStr+(lineArr[k]+"\n");
+						finalStr2 +=addSignStr+(lineArr[k].replace(/(^\s*)|(\s*$)/g, "").replace('\s+',''));
+						finalStr3 +=addSignStr+(lineArr[k].replace(/(^\s*)|(\s*$)/g, "").replace('\s+',''));
+						addSignStr ="";
+						continue;
+					}
+					var attributeStr = splitArr[0]//分出 public，String ，AAA
+					var attributeArr = attributeStr.split(/\s+/);
+					//处理首字母
+					var oriLast = attributeArr[attributeArr.length-1];
+					var inital = oriLast.charAt(0).toLowerCase();
+					var initalUpperCase = oriLast.charAt(0).toUpperCase();
+					var lastLetter = inital+oriLast.substring(1);
+					var lastLetterUpperCase = initalUpperCase+oriLast.substring(1);
+
+					attributeArr.pop();//删除最后一个元素
+					finalStr +=(attributeArr.join(" ")+" "+lastLetter+";"+splitArr[1]+"\n");
+					finalStr2+="\n"+voName+'.set'+lastLetterUpperCase+'('+voNameInner+'.get'+lastLetterUpperCase+'())'+";\n";
+					finalStr3+="\n"+voName+'.'+lastLetter+' = '+voNameInner+'.'+lastLetter+';\n';
+					addSignStr = "//";
+				}
+			document.getElementById('changedText').value = 	finalStr;
+			document.getElementById('changedText2').value = finalStr2;
+			document.getElementById('changedText3').value = finalStr3;
+		}
+	
+}
+
+//SMEG类型转换
+function convertFeildType4SMEG(fieldType){
+	var language = document.getElementById('language').value;	
+	if(language=="Java"){
+		switch(fieldType){
+			case "string": return "String";
+			case "String": return "String";
+			case "long": return "Long";
+			case "long long": return "Long";
+			case "double": return "Double";
+			case "array": return "List";
+			case "hash": return "Object";
+			case "<hash>": return "Object";
+			case "<array>": return "List";
+			case "{}": return "Object";
+			default:break;
+		}
+	}else if(language=="C#"){
+		switch(fieldType){
+			case "string": return "string";
+			case "String": return "string";
+			case "long long": return "long";
+			case "double": return "double";
+			case "array": return "Ilist";
+			case "hash": return "object";
+			case "<hash>": return "object";
+			case "<array>": return "Ilist";
+			case "{}": return "object";
+			default:break;
+		}
+	}
+	return null;
+}
+
+
+//SMEG协议 解析
+function generateFieldJavaBean4SMEG(){
+	// var aTableText = document.getElementById('oriText');//获取一张表的域字段 
+	var allTableText = document.getElementById('oriText');//所有域字段
+	var APIType = "GEMSField";//域类型
+	var finalStr = "";
+	var finalStr2 = "";
+	var pattern2 = new RegExp("[\\[\\]]");
+	var pattern3 = new RegExp("[\\{\\}]"); 
+	var pattern4 = new RegExp("[\\<\\>]"); 
+	var patternQoute =new RegExp("\\{(.| )+?\\}","igm");
+	 
+	var lineArrCheck = allTableText.value.replace(/(^\s*)|(\s*$)/g, "").split(/[\r\n]/g);//行分隔
+	var objCheckArr =  new Array();//全部域字段对象数组
+	
+	for(var i = 0,len = lineArrCheck.length ; i< len ; i++){
+		//循环规则
+		var deepCheckTemp = 0;
+		var lineArrCheckStr = lineArrCheck[i].split(/\t+/);//按TAB分割行元素
+		//如果为空，或者行元素小于3个，结束本次循环
+		if(lineArrCheckStr==null || lineArrCheckStr=="" || lineArrCheckStr.length < 3)continue; 
+		if(lineArrCheckStr.length == 4){
+			var commentCheckTemp = lineArrCheckStr[0];//域注释
+			var attrCheckTemp = lineArrCheckStr[1];//域名字
+			var typeCheckTemp = lineArrCheckStr[2];//域类型
+			var deepCheckTemp = hasArrowCounts(lineArrCheckStr[3]);//符号()
+		}else{
+			var commentCheckTemp = lineArrCheckStr[0];//域注释
+			var attrCheckTemp = lineArrCheckStr[1];//域名字
+			var typeCheckTemp = lineArrCheckStr[2];//域类型
+		}
+		 
+		//处理数组情况，去除方括号 
+		if(pattern2.test(attrCheckTemp)){
+			attrCheckTemp = attrCheckTemp.replace("[","").replace("]","");	 	
+		}else if(pattern3.test(attrCheckTemp)){
+			attrCheckTemp = attrCheckTemp.replace("{","").replace("}","");
+		}else if(pattern4.test(attrCheckTemp)){
+			attrCheckTemp = attrCheckTemp.replace("<","").replace(">","");		
+		}
+
+		if(attrCheckTemp==null||attrCheckTemp=="")continue;
+		var checkObj = createFieldEntity(attrCheckTemp.replace(" ",""),"",removeParethesis(typeCheckTemp.replace(" ","")),commentCheckTemp.replace(" ",""),convertFeildType4SMEG(typeCheckTemp.replace(/(^\s*)|(\s*$)/g, "")),false,deepCheckTemp);
+		objCheckArr.push(checkObj);
+	}  
+	//循环SMEG的对象
+	for(var k = 0 ,len = objCheckArr.length; k<len ; k++){
+		var object = objCheckArr[k];
+		var fieldName = object.fieldName;
+		var fieldType = object.fieldType;
+		var fieldComment = object.fieldComment;
+		var javaType = object.javaType;
+
+		if((k+1<objCheckArr.length)&&objCheckArr[k+1]){
+			var objNext = objCheckArr[k+1];
+			if(objNext.fieldType=='hash'){
+				javaType+='<'+objNext.fieldName+'>';
+				k++;
+			}
+			
+		}
+		var deepCount = object.deepCount;
+		var tabStr  = getTabs(deepCount);
+		finalStr+=composeBeanLine("",tabStr,fieldComment,APIType,fieldType,"",javaType,fieldName); 
+	}
+	document.getElementById('changedText2').value = finalStr; 
+}
+ 
+function removeParethesis(attrCheckTemp){
+	var pattern2 = new RegExp("[\\[\\]]");
+	var pattern3 = new RegExp("[\\{\\}]"); 
+	var pattern4 = new RegExp("[\\<\\>]"); 
+	//去括号 
+	if(pattern2.test(attrCheckTemp)){
+		attrCheckTemp = attrCheckTemp.replace("[","").replace("]","");	 	
+	}else if(pattern3.test(attrCheckTemp)){
+		attrCheckTemp = attrCheckTemp.replace("{","").replace("}","");
+	}else if(pattern4.test(attrCheckTemp)){
+		attrCheckTemp = attrCheckTemp.replace("<","").replace(">","");		
+	}
+	return attrCheckTemp;
+}
+
+</script>
+
+<body>
+<table>
+	<tr>
+		<td align="center"  style="width:16%">
+			<p>Original text</p>
+			<textarea id='oriText' style="height:400px;width:99%"></textarea>
+		</td>
+		<td align="center"  style="width:28%">
+			<p>Changed text 1</p>
+			<textarea id='changedText' style="height:400px;width:99%"></textarea>	
+		</td>
+		<td align="center"  style="width:28%">
+			<p>Changed text 2</p>
+			<textarea id='changedText2' style="height:400px;width:99%"></textarea>	
+		</td>
+		<td align="center" style="width:28%">
+			<p>Changed text 3</p>
+			<textarea id='changedText3' style="height:400px;width:99%"></textarea>	
+		</td>
+	</tr>	
+	<tr><td colspan="4"><hr></td></tr>
+	<tr>
+		<td  >
+			<button onclick="change()">Change Java entity Initial to Lower Case  </button>
+			<p  >把Java entity属性复制到Original text框中，点击上面按钮，把属性首字母变成小写</p>
+			<P>注意：</P>
+			<P>1.原文例子： private String StudentId;//注释</P>
+			<P>---> private String studentId;</P>
+		</td>
+		<td>
+			<button onclick="trans()">Transform table creat Sql-Script to Bean </button>
+			<p >把格式化过的sql建表语句复制到Original text框,点击上面按钮，转换成Java和C#实体，以及产生所有属性的随机数据setter</p>
+			<P>注意：</P>
+			<P>1.sql语句是必须是格式化过的，目前只支持PL/SQL导出的sql</P>
+			<p>2.目前类型转换只支持:VARCHAR2->String ,DATE->Date,NUMBER->BigDecimal。如果类型不在其中，会保留Sql原始数据类型，请自己操作。</p>
+			<p>3.属性的随机数据setter已加入长度限制，并且可以按照不同类型set不同随机数据。</p>
+		</td>
+		<td>
+			<button onclick="transInsert()">InsertScript for MyBatis </button>
+			<p >根据InsertSql中的参数,生成Mybatis的插入属性</p>
+			<P>注意：</P>
+			<P>1.属性的随机数据setter没有加入长度限制，并且没有按照不同类型set不同随机数据。</P>
+			<P>2.插入的原文例子：INSERT TABLE_A (F_SEAT_ID,
+		F_PRVL_ID, F_IS_PRVL, F_OPRT_TIME, F_OPRT_USER_ID, F_CHECK_TIME,
+		F_CHECK_USER_ID)</P>	
+			
+		</td>
+		<td>
+			<span>选择实体属性修饰：</span>
+			<select id="modifier_value">
+			  <option value ="public">public</option>
+			  <option value ="private"  selected="selected">private</option>
+			</select>
+			<br><br>
+			<span>设置Setter方法的Vo变量名：</span>
+			<input id="vo_name" value="this">
+			<br><br>
+			<span>设置Setter方法的内变量名：</span>
+			<input id="vo_name_inner" value="request">
+			<br><br>
+			<span>select 输入值.属性 from 表</span>
+			<input id="select_table_name" value="a">
+			<br><br>
+			是否去除'F_'<input type="checkbox" id="needRemoveFLetter" >
+		</td>
+	</tr> 
+</table>
+</body>
+</html>
